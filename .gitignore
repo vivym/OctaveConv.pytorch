@@ -1,0 +1,8 @@
+# Pycharm editor settings
+.idea
+
+# macOS
+.DS_Store
+
+# log
+logs/
