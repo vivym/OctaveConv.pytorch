@@ -33,6 +33,7 @@ class OctConv(nn.Module):
                 self.downsample = nn.AvgPool2d(kernel_size=2, stride=stride)
             self.convh = nn.Conv2d(hf_ch_in, out_channels, kernel_size=kernel_size, padding=padding)
             self.convl = nn.Conv2d(lf_ch_in, out_channels, kernel_size=kernel_size, padding=padding)
+            self.upsample = partial(F.interpolate, scale_factor=2, mode="nearest")
         else:
             if stride == 2:
                 self.downsample = nn.AvgPool2d(kernel_size=2, stride=stride)
@@ -70,7 +71,9 @@ class OctConv(nn.Module):
             hf, lf = x
             if self.stride == 2:
                 hf = self.downsample(hf)
-            return self.convh(hf) + self.convl(lf)
+                return self.convh(hf) + self.convl(lf)
+            else:
+                return self.convh(hf) + self.convl(self.upsample(lf))
         else:
             hf, lf = x
             if self.stride == 2:
