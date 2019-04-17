@@ -127,6 +127,52 @@ class _ReLU(nn.ReLU):
         return hf, lf
 
 
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, type="normal", oct_conv_on=True):
+        super(BasicBlock, self).__init__()
+        conv3x3 = oct_conv3x3 if oct_conv_on else norm_conv3x3
+        norm_func = _BatchNorm2d if oct_conv_on else nn.BatchNorm2d
+        act_func = _ReLU if oct_conv_on else nn.ReLU
+        
+
+        self.conv1 = conv3x3(inplanes, planes, type="first" if type == "first" else "normal")
+        self.bn1 = norm_func(planes)
+        self.relu1 = act_func(inplace=True)
+        self.conv2 = conv3x3(planes, planes, stride, type="last" if type == "last" else "normal")
+        if type == "last":
+            norm_func = nn.BatchNorm2d
+            act_func = nn.ReLU
+        self.bn2 = norm_func(planes)
+        self.relu2 = act_func(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+        
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu1(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        if isinstance(out, (tuple, list)):
+            assert len(out) == len(identity) and len(out) == 2
+            out = (out[0] + identity[0], out[1] + identity[1])
+        else:
+            out += identity
+
+        out = self.relu2(out)
+
+        return out
+
+
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -213,7 +259,7 @@ class ResNet(nn.Module):
 
     def _make_layer(self, block, planes, blocks, stride=1, type="normal"):
         downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
+        if stride != 1 or self.inplanes != planes * block.expansion or type=='first':
             norm_func = nn.BatchNorm2d if type == "last" else _BatchNorm2d
             downsample = nn.Sequential(
                 oct_conv1x1(self.inplanes, planes * block.expansion, stride, type=type),
@@ -244,6 +290,28 @@ class ResNet(nn.Module):
         x = self.fc(x)
 
         return x
+
+
+def octave_resnet18(pretrained=False, **kwargs):
+    """Constructs a ResNet-18 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+    return model
+
+
+def octave_resnet34(pretrained=False, **kwargs):
+    """Constructs a ResNet-34 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
+    return model
 
 
 def octave_resnet50(pretrained=False, **kwargs):
